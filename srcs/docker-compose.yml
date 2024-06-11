@@ -1,0 +1,100 @@
+#Compose plugin vs. standalone CLI: The Docker Compose functionality can be used in two ways:
+#As a Python-based standalone CLI (docker-compose).
+#As a Go plugin integrated into Docker Desktop (docker compose).
+#this is the version of docker compose check with docker-compose --version
+version: '3.8'
+services:
+  nginx:
+    #image: nginx
+    build:
+      context: .
+      dockerfile: requirements/nginx/Dockerfile
+      args:
+         CERT_PATH: ${CERTS_}
+         KEY_PATH: ${KEY_}
+    container_name: nginx
+    depends_on:
+     - wordpress
+    ports:
+      - "443:443"
+    networks:
+      - inception
+    volumes:
+      #  - ~/simple_docker_nginx_html/public/html:/var/www/
+      - wp-volume:/var/www
+    restart: always
+
+  mariadb:
+    #image: mariadb
+    build:
+      context: .
+      dockerfile: requirements/mariadb/Dockerfile
+      args:
+        DB_NAME: ${DB_NAME}
+        DB_USER: ${DB_USER}
+        DB_PASS: ${DB_PASS}
+        DB_ROOT: ${DB_ROOT}
+    container_name: mariadb
+    networks:
+      - inception
+    expose:
+      - "3306"
+    volumes:
+      - db-volume:/var/lib/mysql
+    restart: always
+
+  wordpress:
+#     image: wordpress
+    container_name: wordpress
+    env_file:
+      - .env
+    build:
+      context: .
+      dockerfile: requirements/wordpress/Dockerfile
+      args:
+        DB_NAME: ${DB_NAME}
+        DB_USER: ${DB_USER}
+        DB_PASS: ${DB_PASS}
+        DOMAIN_NAME: ${DOMAIN_NAME}
+        WPADUSER: ${WPADUSER}
+        WPUSER1: ${WPUSER1}
+        WPADPASS: ${WPADPASS}
+        WPUSER1PASS: ${WPUSER1PASS}
+    depends_on:
+      - mariadb
+    expose:
+      - "9000"
+    restart: always
+    networks:
+      - inception
+    volumes:
+      - wp-volume:/var/www
+
+volumes:
+  wp-volume:
+    #wp-volume: This volume mounts the directory /home/${USER}/data/wordpress on the host machine to the /var/www/ directory inside the container.
+    #  This allows the nginx and wordpress services to access website files stored on the host.
+    name: wp-volume
+    driver_opts:
+      #bind: This keyword indicates that a host directory is being mounted. o: This option specifies the specific bind mount options
+      o: bind
+      #type: none: This option tells Docker not to create a new volume on the host machine.
+      type: none
+      #This section defines the host directory path that will be mounted to the specified location within the container for each volume:
+      device: /home/${USER}/data/wp-volume
+
+  db-volume:
+    #db-volume: This volume mounts the directory /home/${USER}/data/mariadb on the host machine to the /var/lib/mysql directory inside the
+    #  container. This ensures the database data persists even if the mariadb container is recreated.
+    name: db-volume
+    driver_opts:
+      o: bind
+      type: none
+      device: /home/${USER}/data/db-volume
+
+networks:
+  inception:
+    #driver: bridge: This specifies the network driver used to create the virtual network. In this case, the bridge driver is used. This driver
+    # creates a standard virtual network that allows the containers connected to it to communicate with each other as well as with other
+    # hosts on the same physical network.
+    driver: bridge
